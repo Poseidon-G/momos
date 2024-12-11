@@ -1,0 +1,8 @@
+logs
+app.log
+
+app/logs/
+
+/node_modules/
+
+/downloads/

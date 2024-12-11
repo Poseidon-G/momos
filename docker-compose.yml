@@ -1,0 +1,98 @@
+# docker-compose.yml
+version: '3.8'
+
+services:
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - REACT_APP_API_URL=http://publisher:8000
+    depends_on:
+      - publisher
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    networks:
+      - frontend
+
+  publisher:
+    build:
+      context: ./publisher
+      dockerfile: Dockerfile
+    ports:
+      - "${PUBLISHER_PORT-8000}:8000"
+    env_file:
+      - ./publisher/.env
+    depends_on:
+      - redis
+      - postgres
+    volumes:
+      - shared_downloads:/app/downloads
+      - type: bind
+        source: ./app/logs
+        target: /app/logs
+        bind:
+          create_host_path: true
+    networks:
+      - backend
+      - frontend
+
+  worker:
+    build:
+      context: ./worker
+      dockerfile: Dockerfile
+    env_file:
+      - ./worker/.env
+    depends_on:
+      - redis
+      - postgres
+      - publisher
+    volumes:
+      - shared_downloads:/app/downloads
+    networks:
+      - backend
+      - frontend
+
+  redis:
+    image: redis:alpine
+    ports:
+      - "${REDIS_PORT-6399}:6379"
+    volumes:
+      - imgcrawler_redis:/data
+    networks:
+      - backend
+
+  postgres:
+    container_name: momos_postgres
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${DB_USERNAME-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD-postgres}
+      POSTGRES_DB: ${DB_DATABASE-imgcrawler}
+    ports:
+      - "${DB_PORT:-5435}:5432"
+    volumes:
+      - imgcrawler_postgres:/var/lib/postgresql/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME} -d ${DB_DATABASE}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    
+
+volumes:
+  imgcrawler_redis:
+  imgcrawler_postgres:
+  shared_downloads:
+
+networks:
+  frontend:
+    driver: bridge
+  backend:
+    driver: bridge
+    internal: true
