@@ -53,6 +53,8 @@ chmod 777 ./app/logs
 docker compose up -d
 ```
 
+### 4. Access frontend Open your browser and navigate to:
+http://localhost:3000
 
 ## Troubleshooting
 ### Common Issues
