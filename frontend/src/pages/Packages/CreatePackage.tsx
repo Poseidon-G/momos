@@ -29,6 +29,7 @@ import { styled } from '@mui/material/styles';
 import { Package, MediaType, createPackageApi } from '../../services/packageService';
 import { toast } from 'react-toastify';
 import { useNavigate } from 'react-router-dom';
+import PackageTable from '../../components/PackageTable';
 
 // Define the steps for the stepper
 const steps = ['Package Details', 'Add URLs', 'Review Package'];
@@ -79,6 +80,8 @@ const validateItem = (url: string, filename: string, mediaType: string): 'valid'
 
   return 'valid';
 };
+
+
 
 const DropZone = styled(Paper)(({ theme }) => ({
   padding: theme.spacing(4),
@@ -215,16 +218,17 @@ const CreatePackagePage = () => {
 
   // Handle manual addition of a new item
   const handleAddItem = () => {
+    console.log("items", form.items);
     const newItem: DownloadItem = {
-      id: form.items.length > 0 ? form.items[form.items.length - 1].id + 1 : 1,
+      id: form.items.length > 0 ? form.items.length + 1 : 1,
       url: '',
       filename: '',
-      mediaType: '',
+      mediaType: 'image', // Set default value
       status: 'invalid',
     };
     setForm((prev) => ({
       ...prev,
-      items: [...prev.items, newItem],
+      items: [newItem, ...prev.items],
     }));
   };
 
@@ -247,80 +251,19 @@ const CreatePackagePage = () => {
       items: prev.items.map((item) =>
         item.id === id
           ? {
-            ...item,
-            [field]: value,
-            status: field === 'url' || field === 'filename'
-              ? value ? (item.url && item.filename ? 'valid' : 'invalid') : 'invalid'
-              : item.status,
-          }
+              ...item,
+              [field]: value,
+              status: validateItem(
+                field === 'url' ? value : item.url,
+                field === 'filename' ? value : item.filename,
+                field === 'mediaType' ? value : item.mediaType
+              ),
+            }
           : item
       ),
     }));
   };
 
-  // Define columns for the DataGrid
-  const columns: GridColDef[] = [
-    {
-      field: 'url',
-      headerName: 'URL',
-      width: 300,
-      editable: true,
-      renderCell: (params: GridRenderCellParams<DownloadItem>) => (
-        <TextField
-          variant="standard"
-          value={params.value}
-          onChange={(e) => handleItemChange(params.row.id, 'url', e.target.value)}
-          fullWidth
-        />
-      ),
-    },
-    {
-      field: 'filename',
-      headerName: 'Filename',
-      width: 200,
-      editable: true,
-      renderCell: (params: GridRenderCellParams<DownloadItem>) => (
-        <TextField
-          variant="standard"
-          value={params.value}
-          onChange={(e) => handleItemChange(params.row.id, 'filename', e.target.value)}
-          fullWidth
-        />
-      ),
-    },
-    {
-      field: 'status',
-      headerName: 'Status',
-      width: 120,
-      sortable: false,
-      filterable: false,
-      renderCell: (params: GridRenderCellParams<DownloadItem, 'valid' | 'invalid'>) => (
-        <Chip
-          icon={params.value === 'valid' ? <CheckCircle /> : <ErrorIcon />}
-          label={params.value === 'valid' ? 'Valid' : 'Invalid'}
-          color={params.value === 'valid' ? 'success' : 'error'}
-          size="small"
-        />
-      ),
-    },
-    {
-      field: 'actions',
-      headerName: 'Actions',
-      width: 100,
-      sortable: false,
-      filterable: false,
-      renderCell: (params: GridRenderCellParams) => (
-        <Tooltip title="Delete">
-          <IconButton
-            color="error"
-            onClick={() => handleDeleteItem(params.row.id)}
-          >
-            <Delete />
-          </IconButton>
-        </Tooltip>
-      ),
-    },
-  ];
 
   // Handle form submission
   const handleSubmit = async () => {
@@ -350,7 +293,7 @@ const CreatePackagePage = () => {
         toast.success('Package created successfully');
         // Redirect to the packages page
         navigate('/packages');
-      } 
+      }
     } catch (error: any) {
       const msg = error.response?.data?.message || error.message;
       toast.error(msg || 'An unexpected error occurred');
@@ -449,7 +392,45 @@ const CreatePackagePage = () => {
                   />
                 </Button>
               </DropZone>
-
+              {form.items.length > 0 && (
+                <>
+                  <StatsBox>
+                    <StatCard>
+                      <Typography variant="h4" color="primary">
+                        {form.items.length}
+                      </Typography>
+                      <Typography color="text.secondary">Total Items</Typography>
+                    </StatCard>
+                    <StatCard>
+                      <Typography variant="h4" color="success.main">
+                        {form.items.filter((i) => i.status === 'valid').length}
+                      </Typography>
+                      <Typography color="text.secondary">Valid Items</Typography>
+                    </StatCard>
+                    <StatCard>
+                      <Typography variant="h4" color="error.main">
+                        {form.items.filter((i) => i.status === 'invalid').length}
+                      </Typography>
+                      <Typography color="text.secondary">Invalid Items</Typography>
+                    </StatCard>
+                  </StatsBox>
+                </>
+              )}
+              <Box sx={{ width: '100%' }}>
+                <PackageTable
+                  items={form.items}
+                  onDeleteItem={handleDeleteItem}
+                  onChangeItem={handleItemChange}
+                />
+              </Box>
+              <Button
+                variant="contained"
+                startIcon={<AddIcon />}
+                onClick={handleAddItem}
+                sx={{ mt: 2 }}
+              >
+                Add New Item
+              </Button>
               {file && (
                 <Box sx={{ display: 'flex', alignItems: 'center', mb: 3 }}>
                   <FilePresent color="primary" sx={{ mr: 2 }} />
@@ -477,75 +458,22 @@ const CreatePackagePage = () => {
                 </Box>
               )}
 
-              {form.items.length > 0 && (
-                <>
-                  <StatsBox>
-                    <StatCard>
-                      <Typography variant="h4" color="primary">
-                        {form.items.length}
-                      </Typography>
-                      <Typography color="text.secondary">Total Items</Typography>
-                    </StatCard>
-                    <StatCard>
-                      <Typography variant="h4" color="success.main">
-                        {form.items.filter((i) => i.status === 'valid').length}
-                      </Typography>
-                      <Typography color="text.secondary">Valid Items</Typography>
-                    </StatCard>
-                    <StatCard>
-                      <Typography variant="h4" color="error.main">
-                        {form.items.filter((i) => i.status === 'invalid').length}
-                      </Typography>
-                      <Typography color="text.secondary">Invalid Items</Typography>
-                    </StatCard>
-                  </StatsBox>
-
-                  {validationErrors.length > 0 && (
-                    <Alert
-                      severity="warning"
-                      sx={{ mt: 2 }}
-                      action={
-                        <Button color="inherit" size="small">
-                          View Details
-                        </Button>
-                      }
-                    >
-                      {validationErrors.length} items need attention
-                    </Alert>
-                  )}
-
-                  <Box sx={{ height: 500, width: '100%' }}>
-                    <DataGrid
-                      rows={form.items}
-                      columns={columns}
-                      initialState={{
-                        pagination: {
-                          paginationModel: { pageSize: 50 },
-                        },
-                      }}
-                      pageSizeOptions={[50, 100, 200]}
-                      disableRowSelectionOnClick
-                      sx={{
-                        '& .MuiDataGrid-cell': {
-                          alignItems: 'center',
-                        },
-                        '& .MuiDataGrid-columnHeaders': {
-                          backgroundColor: 'background.paper',
-                        },
-                      }}
-                    />
-                  </Box>
-
-                  <Button
-                    variant="contained"
-                    startIcon={<AddIcon />}
-                    onClick={handleAddItem}
-                    sx={{ mt: 2 }}
-                  >
-                    Add New Item
-                  </Button>
-                </>
+              {validationErrors.length > 0 && (
+                <Alert
+                  severity="warning"
+                  sx={{ mt: 2 }}
+                  action={
+                    <Button color="inherit" size="small">
+                      View Details
+                    </Button>
+                  }
+                >
+                  {validationErrors.length} items need attention
+                </Alert>
               )}
+
+
+
             </Stack>
           </Paper>
         );
