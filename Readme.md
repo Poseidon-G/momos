@@ -56,6 +56,21 @@ docker compose up -d
 ### 4. Access frontend Open your browser and navigate to:
 http://localhost:3000
 
+
+## If you want to check image downloaded can acccess to container or checking volume in docker volume
+### Directly in container and access /app/downloads
+```bash
+docker ps -a | grep imgcrawler-publisher
+docker exec -it <container_id> sh
+cd /downloads
+```
+![Shared downloads volume](./shared_downloads.png)
+
+### In volumes of docker 
+```bash
+docker volume inspect imgcrawler_shared_downloads
+```
+Check in mountpoint of volume
 ## Troubleshooting
 ### Common Issues
 1. Permission denied for logs
