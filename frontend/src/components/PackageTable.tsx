@@ -20,8 +20,6 @@ import { useState } from 'react';
 interface DownloadItem {
   id: number;
   url: string;
-  filename: string;
-  mediaType: string;
   status: 'valid' | 'invalid';
 }
   
@@ -66,8 +64,6 @@ interface PackageTableProps {
           <TableHead>
             <TableRow>
               <TableCell>URL</TableCell>
-              <TableCell>Filename</TableCell>
-              <TableCell>Media Type</TableCell>
               <TableCell>Status</TableCell>
               <TableCell>Actions</TableCell>
             </TableRow>
@@ -84,25 +80,6 @@ interface PackageTableProps {
                       onChange={(e) => onChangeItem(item.id, 'url', e.target.value)}
                       placeholder="Enter URL"
                     />
-                  </TableCell>
-                  <TableCell>
-                    <StyledInput
-                      fullWidth
-                      value={item.filename}
-                      onChange={(e) => onChangeItem(item.id, 'filename', e.target.value)}
-                      placeholder="Enter filename"
-                    />
-                  </TableCell>
-                  <TableCell>
-                    <Select
-                      value={item.mediaType}
-                      onChange={(e) => onChangeItem(item.id, 'mediaType', e.target.value)}
-                      variant="standard"
-                      fullWidth
-                    >
-                      <MenuItem value="image">Image</MenuItem>
-                      <MenuItem value="video">Video</MenuItem>
-                    </Select>
                   </TableCell>
                   <TableCell>
                     <Chip

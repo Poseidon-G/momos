@@ -1,8 +1,9 @@
-import { IsString, IsNotEmpty, IsEnum, ValidateNested, ArrayNotEmpty } from 'class-validator';
+import { IsString, IsNotEmpty, IsEnum, ValidateNested, ArrayNotEmpty, IsOptional } from 'class-validator';
 import { MediaStatus, MediaType } from '../shared/types';
 
 export class CreateMediaDto {
     @IsString()
+    @IsOptional()
     filename?: string;
     
     @IsString()
@@ -10,7 +11,8 @@ export class CreateMediaDto {
     url!: string;
 
     @IsEnum(MediaType)
-    mediaType!: MediaType;
+    @IsOptional()
+    mediaType?: MediaType;
 
 }
 

@@ -71,8 +71,8 @@ export enum MediaType {
 
 export interface Media {
     url: string;
-    filename: string;
-    mediaType: MediaType;
+    filename?: string;
+    mediaType?: MediaType;
 }
 export interface Package {
     title: string;

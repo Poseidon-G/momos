@@ -6,6 +6,7 @@ import { CreatePackageDto } from "../dto/package.dto";
 import { PackageStatus, MediaStatus, MediaType } from "../shared/types";
 import { DownloadPublisher } from "../pub-sub/publisher/job-publisher";
 import { generateUniqueFileName } from "../utils/media.util";
+import { determineMediaType } from "../utils/media.util";
 import { IUser } from "../interfaces/user.interface";
 import CustomError from "../constants/errors";
 import Redis from "ioredis";
@@ -30,64 +31,75 @@ export class PackageService {
     }
 
     async createPackageFromUser(rawData: CreatePackageDto, user: IUser): Promise<IPackage> {
-        // Create package and media entries first
-        const newPackage = await this.packageRepository.create({
-            title: rawData.title,
-            description: rawData.description,
-            user: user,
-            status: PackageStatus.PENDING,
-        });
-    
-        // Create all media entries in parallel
-        const mediaList = await Promise.all(
-            rawData.media.map(media => 
-                this.mediaRepository.create({
-                    originalUrl: media.url,
-                    mediaType: media.mediaType,
-                    status: MediaStatus.PENDING,
-                    package: newPackage,
-                })
-            )
-        );
-    
+        let newPackage: IPackage = {} as IPackage;
         try {
-            // Separate media by type
-            const imageJobs = mediaList
-                .filter(media => media.mediaType === MediaType.IMAGE)
-                .map(media => ({
-                    id: media.id,
-                    url: media.originalUrl,
-                    filename: generateUniqueFileName(media.originalUrl, MediaType.IMAGE)
-                }));
-    
-            const videoJobs = mediaList
-                .filter(media => media.mediaType === MediaType.VIDEO)
-                .map(media => ({
-                    id: media.id,
-                    url: media.originalUrl,
-                    filename: generateUniqueFileName(media.originalUrl, MediaType.VIDEO),
-                }));
-    
-            // Publish jobs in parallel
-            await Promise.all([
-                imageJobs.length > 0 && this.downloadPublisher.publishBatchImageDownloadJobs(imageJobs),
-                videoJobs.length > 0 && this.downloadPublisher.publishBatchVideoDownloadJobs(videoJobs)
-            ].filter(Boolean));
-    
-            //Set total media pending count
-            await this.redis.multi()
-                .set(`package:${newPackage.id}:media:pending`, mediaList.length)
-                .exec();
+            // Create package and media entries first
+            newPackage = await this.packageRepository.create({
+                title: rawData.title,
+                description: rawData.description,
+                user: user,
+                status: PackageStatus.PENDING,
+            });
 
-            return newPackage;
-        } catch (error) {
-            // Update package and media status to failed if job publishing fails
-            await this.packageRepository.update(newPackage.id, { status: PackageStatus.FAILED });
-            await Promise.all(
-                mediaList.map(media => 
-                    this.mediaRepository.update(media.id, { status: MediaStatus.FAILED })
+            // Create all media entries in parallel
+            const mediaList = await Promise.all(
+                rawData.media.map(media => {
+                    const mediaType = media.mediaType || determineMediaType(media.url);
+                    if (!mediaType) {
+                        throw CustomError.ValidationFailed
+                    }
+                    return this.mediaRepository.create({
+                        originalUrl: media.url,
+                        mediaType: mediaType,
+                        status: MediaStatus.PENDING,
+                        package: newPackage,
+                    })
+                }
                 )
             );
+
+            try {
+                // Separate media by type
+                const imageJobs = mediaList
+                    .filter(media => media.mediaType === MediaType.IMAGE)
+                    .map(media => ({
+                        id: media.id,
+                        url: media.originalUrl,
+                        filename: generateUniqueFileName(media.originalUrl, MediaType.IMAGE)
+                    }));
+
+                const videoJobs = mediaList
+                    .filter(media => media.mediaType === MediaType.VIDEO)
+                    .map(media => ({
+                        id: media.id,
+                        url: media.originalUrl,
+                        filename: generateUniqueFileName(media.originalUrl, MediaType.VIDEO),
+                    }));
+
+                // Publish jobs in parallel
+                await Promise.all([
+                    imageJobs.length > 0 && this.downloadPublisher.publishBatchImageDownloadJobs(imageJobs),
+                    videoJobs.length > 0 && this.downloadPublisher.publishBatchVideoDownloadJobs(videoJobs)
+                ].filter(Boolean));
+
+                //Set total media pending count
+                await this.redis.multi()
+                    .set(`package:${newPackage.id}:media:pending`, mediaList.length)
+                    .exec();
+
+                return newPackage;
+            } catch (error) {
+                // Update package and media status to failed if job publishing fails
+                await this.packageRepository.update(newPackage.id, { status: PackageStatus.FAILED });
+                await Promise.all(
+                    mediaList.map(media =>
+                        this.mediaRepository.update(media.id, { status: MediaStatus.FAILED })
+                    )
+                );
+                throw error;
+            }
+        } catch (error) {
+            await this.packageRepository.update(newPackage.id, { status: PackageStatus.FAILED });
             throw error;
         }
     }
@@ -98,11 +110,11 @@ export class PackageService {
             this.mediaRepository.findListMediaWithPackageId(packageId, { skip: 0, limit: 10 })
         ]);
 
-        if(!packageInfo){
+        if (!packageInfo) {
             throw CustomError.NotFound
         }
 
-        if(packageInfo.user.id !== user.id){
+        if (packageInfo.user.id !== user.id) {
             throw CustomError.ForbiddenRequest
         }
 
@@ -110,11 +122,11 @@ export class PackageService {
             ...packageInfo,
             media: mediaList
         }
-        
+
     }
 
     async getListOfPackagesForUser(
-        user: IUser, 
+        user: IUser,
         page: number = 1,
         size: number = 10
     ): Promise<PaginatedResponse<IPackage>> {
@@ -147,11 +159,11 @@ export class PackageService {
         // Check if package belongs to user
         const packageInfo = await this.packageRepository.findPackageWithUserInfo(packageId);
 
-        if(!packageInfo){
+        if (!packageInfo) {
             throw CustomError.NotFound
         }
 
-        if(packageInfo.user.id !== user.id){
+        if (packageInfo.user.id !== user.id) {
             throw CustomError.ForbiddenRequest
         }
 
@@ -168,7 +180,7 @@ export class PackageService {
             { page, limit, skip }
         );
     }
-    
+
 
     private async markMediaJobOfPackageExecuted(packageId: number): Promise<void> {
         // Decrement pending media count
@@ -186,7 +198,7 @@ export class PackageService {
     async checkMarkedMediaAndPackageCompletion(mediaId: number): Promise<void> {
         const mediaInfo = await this.mediaRepository.findMediaWithPackageInfo(mediaId);
 
-        if(!mediaInfo) {
+        if (!mediaInfo) {
             throw new Error(`Media with id ${mediaId} not found`);
         }
         const packageId = mediaInfo.package.id;

@@ -38,8 +38,6 @@ const steps = ['Package Details', 'Add URLs', 'Review Package'];
 interface DownloadItem {
   id: number;
   url: string;
-  filename: string;
-  mediaType: string;
   status: 'valid' | 'invalid';
 }
 
@@ -58,13 +56,9 @@ const getFileExtension = (filename: string): string => {
 };
 
 // Validation function
-const validateItem = (url: string, filename: string, mediaType: string): 'valid' | 'invalid' => {
+const validateItem = (url: string): 'valid' | 'invalid' => {
   // Check for non-empty fields
-  if (!url.trim() || !filename.trim()) return 'invalid';
-
-  if (mediaType === 'image' || mediaType === 'video') {
-    return 'valid';
-  }
+  if (!url.trim()) return 'invalid';
 
   // Validate URL format
   try {
@@ -72,11 +66,6 @@ const validateItem = (url: string, filename: string, mediaType: string): 'valid'
   } catch {
     return 'invalid';
   }
-
-  // Validate filename extension (optional but recommended)
-  const validExtensions = ['.jpg', '.jpeg', '.png', '.gif', '.mp4', '.pdf', '.webp', '.bmp'];
-  const fileExtension = getFileExtension(filename);
-  if (!validExtensions.includes(fileExtension)) return 'invalid';
 
   return 'valid';
 };
@@ -136,25 +125,25 @@ const CreatePackagePage = () => {
   const navigate = useNavigate();
 
   // Sample CSV data
-  const sampleCsvData = `https://picsum.photos/id/0/5000/3333,photo-0.jpg,image
-  https://picsum.photos/id/1/5000/3333,photo-1.jpg,image
-  https://picsum.photos/id/2/5000/3333,photo-2.jpg,image
-  https://picsum.photos/id/3/5000/3333,photo-3.jpg,image
-  https://picsum.photos/id/4/5000/3333,photo-4.jpg,image
-  https://picsum.photos/id/5/5000/3333,photo-5.jpg,image
-  https://picsum.photos/id/6/5000/3333,photo-6.jpg,image
-  https://picsum.photos/id/7/5000/3333,photo-7.jpg,image
-  https://picsum.photos/id/8/5000/3333,photo-8.jpg,image
-  https://picsum.photos/id/9/5000/3333,photo-9.jpg,image
-  https://picsum.photos/id/10/5000/3333,photo-10.jpg,image
-  https://picsum.photos/id/11/5000/3333,photo-11.jpg,image
-  https://picsum.photos/id/12/5000/3333,photo-12.jpg,image
-  https://picsum.photos/id/13/5000/3333,photo-13.jpg,image
-  https://picsum.photos/id/14/5000/3333,photo-14.jpg,image
-  https://picsum.photos/id/15/5000/3333,photo-15.jpg,image
-  https://picsum.photos/id/16/5000/3333,photo-16.jpg,image
-  https://picsum.photos/id/17/5000/3333,photo-17.jpg,image
-  https://www.sample-videos.com/video321/mp4/720/big_buck_bunny_720p_1mb.mp4,big_buck_b.mp4,video
+  const sampleCsvData = `https://picsum.photos/id/0/5000/3333
+  https://picsum.photos/id/1/5000/3333
+  https://picsum.photos/id/2/5000/3333
+  https://picsum.photos/id/3/5000/3333
+  https://picsum.photos/id/4/5000/3333
+  https://picsum.photos/id/5/5000/3333
+  https://picsum.photos/id/6/5000/3333
+  https://picsum.photos/id/7/5000/3333
+  https://picsum.photos/id/8/5000/3333
+  https://picsum.photos/id/9/5000/3333
+  https://picsum.photos/id/10/5000/3333
+  https://picsum.photos/id/11/5000/3333
+  https://picsum.photos/id/12/5000/3333
+  https://picsum.photos/id/13/5000/3333
+  https://picsum.photos/id/14/5000/3333
+  https://picsum.photos/id/15/5000/3333
+  https://picsum.photos/id/16/5000/3333
+  https://picsum.photos/id/17/5000/3333
+  https://www.sample-videos.com/video321/mp4/720/big_buck_bunny_720p_1mb.mp4
   `
 
   // Function to download the sample CSV
@@ -188,21 +177,19 @@ const CreatePackagePage = () => {
         for (let i = 0; i < rows.length; i += chunkSize) {
           const chunk = rows.slice(i, i + chunkSize);
           const chunkItems = chunk.map((row) => {
-            const [url, filename, mediaType] = row.split(',');
-            const isValid = validateItem(url, filename, mediaType);
+            let [url] = row.split(',');
+            url = url?.trim() || '';
             return {
               id: itemId++,
-              url: url?.trim() || '',
-              filename: filename?.trim() || '',
-              mediaType: (mediaType?.trim() || '').toLowerCase() as MediaType,
-              status: isValid as 'valid' | 'invalid',
+              url: url,
+              status: validateItem(url),
             };
           });
           items.push(...chunkItems);
           setProcessedItems((prev) => prev + chunk.length);
           setForm((prev) => ({
             ...prev,
-            items: [...prev.items, ...chunkItems.filter(item => item.url && item.filename)],
+            items: [...prev.items, ...chunkItems.filter(item => item.url)],
           }));
           // Allow UI to update
           await new Promise((resolve) => setTimeout(resolve, 0));
@@ -222,13 +209,11 @@ const CreatePackagePage = () => {
     const newItem: DownloadItem = {
       id: form.items.length > 0 ? form.items.length + 1 : 1,
       url: '',
-      filename: '',
-      mediaType: 'image', // Set default value
       status: 'invalid',
     };
     setForm((prev) => ({
       ...prev,
-      items: [newItem, ...prev.items],
+      items: [...prev.items, newItem],
     }));
   };
 
@@ -254,9 +239,7 @@ const CreatePackagePage = () => {
               ...item,
               [field]: value,
               status: validateItem(
-                field === 'url' ? value : item.url,
-                field === 'filename' ? value : item.filename,
-                field === 'mediaType' ? value : item.mediaType
+                field === 'url' ? value : item.url
               ),
             }
           : item
@@ -274,8 +257,6 @@ const CreatePackagePage = () => {
         description: form.description,
         media: form.items.map((item) => ({
           url: item.url,
-          filename: item.filename,
-          mediaType: item.mediaType === 'image' ? MediaType.IMAGE : MediaType.VIDEO,
         })),
       };
 
